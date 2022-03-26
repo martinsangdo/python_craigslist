@@ -11,8 +11,12 @@ import calendar
 import ssl
 import sys
 
+#######################
+def getCurrentTimestamp():
+    return calendar.timegm(time.gmtime())
+#######################
 #parse detail page
-def parse_detail_page(detail_page_url, detail):
+def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     page = ''
     while page == '':
         try:
@@ -23,121 +27,83 @@ def parse_detail_page(detail_page_url, detail):
             continue
     # print page.content
     tree = html.fromstring(page.content)
+    detail['url'] =  detail_page_url
     # print 'completed parse ' + detail_page_url
-    scripts = tree.xpath('//script')
-    valid_script = ''
-    for script in scripts:
-        if (script.text_content().find('var gid =') >= 0):
-            valid_script = script.text_content()
-            break
-    # print valid_script
-    lines = valid_script.splitlines()
-    gid = ''
-    uc = 0
-    cover_url = ''
-    for line in lines:
-        line = line.strip()
-        if (line.find('var gid =') >= 0):
-            gid = line.replace('var gid =', '').replace(';', '')
-        if (line.find('var uc =') >= 0):
-            uc = line.replace('var uc =', '').replace(';', '')
-        if (line.find('var img =') >= 0):
-            cover_url = line.replace('var img =', '').replace(';', '').replace("'", '')
-    detail['cover_url'] = cover_url.strip()
-    if (gid != ''):
-        page = ''
-        url = 'https://www.javbus.com/ajax/uncledatoolsbyajax.php?lang=en&uc='+uc.strip()+'&gid='+gid.strip()
-        while page == '':
-            try:
-                page = requests.get(url, headers={'User-Agent': 'Mozilla/5.0', 'referer': detail_page_url})
-                break
-            except:
-                time.sleep(5)
-                continue
-        raw_data = html.fromstring(page.content)
-        rows = raw_data.xpath('./tr')   #20210105 changed logic to get last row data
-        detail['play_links'] = []
-        detail['original_links'] = []
-        if len(rows) > 0:
-            tds = rows[len(rows)-1].xpath('./td')     #tds of last row
-            if (len(tds) > 2):
-                a_tag = tds[1].xpath('./a') #size
-                detail['size'] = a_tag[0].text_content().strip()
-                detail['play_links'] = [encrypt_str(a_tag[0].attrib['href'].strip())]   #encrypted magnet link
-                #
-                a_tag = tds[2].xpath('./a')
-                detail['share_date'] = a_tag[0].text_content().strip()
-                #save all links
-                detail['original_links'] = []
-                for row in rows:
-                    row_data = {}
-                    tds = row.xpath('./td')
-                    a_tag = tds[0].xpath('./a')
-                    row_data['title'] = a_tag[0].text_content().strip()
-                    row_data['link'] = a_tag[0].attrib['href'].strip()   #magnet link, dont need to encrypt
-                    a_tag = tds[1].xpath('./a')
-                    row_data['size'] = a_tag[0].text_content().strip()
-                    a_tag = tds[2].xpath('./a')
-                    row_data['share_date'] = a_tag[0].text_content().strip()
-                    detail['original_links'].append(row_data)
-    #find thumbnails
-    frames = tree.xpath('//div[@id="sample-waterfall"]/a[@class="sample-box"]')
-    thumb_pics = []
-    for frame in frames:
-        thumb_pics.append(frame.get("href"))
-    detail['thumb_pics'] = thumb_pics
-    #find length of movie
-    extra_info = tree.xpath('//div[@class="row movie"]/div[@class="col-md-3 info"]/p')
-    if extra_info is not None and len(extra_info) > 2:
-        detail['video_len'] = extract_numbers(extra_info[2].text_content().strip())
+    #get title
+    title = tree.xpath('//span[@class="postingtitletext"]')
+    detail['title'] = title[0].text_content().strip()
+    #get description
+    description = tree.xpath('//section[@id="postingbody"]')
+    detail['description'] = html.tostring(description[0])
+    #get extra info
+    extra_info = tree.xpath('//p[@class="attrgroup"]')
+    detail['extra_info'] = html.tostring(extra_info[0])
     #
+    detail['country'] = meta_detail['country']
+    detail['city'] = meta_detail['city']
+    detail['catalog'] = meta_detail['catalog']
+#
+    upsert_detail(db_client, detail)
+
     return
 #######################
-def extract_numbers(str):
-    return ''.join([n for n in str if n.isdigit()])
+#parse post list page
+def parse_post_list_page(db_client, meta_detail, post_list_page_url):
+    page = ''
+    while page == '':
+        try:
+            page = requests.get(post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4', headers={'User-Agent': 'Mozilla/5.0'})
+            break
+        except:
+            time.sleep(5)
+            continue
+    # print page.content
+    tree = html.fromstring(page.content)
+    print 'completed parse ' + post_list_page_url
+    list = tree.xpath('//ul[@id="search-results"]/li[@class="result-row"]')
+    for item in list:
+        detail = {}
+        #find date
+        date = item.xpath('.//time[@class="result-date"]')
+        detail['datetime'] = date[0].attrib['datetime']
+        #find link
+        link = item.xpath('.//a')
+        parse_detail_page(db_client, meta_detail, detail, link[0].attrib['href'])
+    return
+#######################
+#parse city page
+def parse_city_page(db_client, meta_detail, city_page_url):
+    page = ''
+    while page == '':
+        try:
+            page = requests.get(city_page_url, headers={'User-Agent': 'Mozilla/5.0'})
+            break
+        except:
+            time.sleep(5)
+            continue
+    # print page.content
+    tree = html.fromstring(page.content)
+    # print 'completed parse ' + city_page_url
+    software = tree.xpath('//a[@class="sof"][@data-cat="sof"]')
+    meta_detail['catalog'] = 'software';
+    parse_post_list_page(db_client, meta_detail, city_page_url.replace('craigslist.org/', 'craigslist.org') + software[0].attrib['href'])
+    #web design
+    web = tree.xpath('//a[@class="web"][@data-cat="web"]')
+    parse_post_list_page(db_client, meta_detail, city_page_url.replace('craigslist.org/', 'craigslist.org') + web[0].attrib['href'])
+    return
 #######################
 #upsert movie detail
 def upsert_detail(db_client, detail):
+    # print(detail)
+    # print('--------')
     #find if movie is existed (soft deleted or not)
-    record = db_client[const_swipex.DB_COLLECTION_MOVIES].find_one({'code':detail['code']})
+    record = db_client[constant.DB_COLLECTION_POST].find_one({'url':detail['url']})
     if record is None:
         #not existed
         detail['created_time'] = getCurrentTimestamp()
-        detail['source'] = 'javbus'
-        detail['is_active'] = 0
-        detail['is_processed_speed'] = 0
-        detail['natural_order_index'] = -1
-        detail['category_id'] = '5f75927b5c425008d254a788'    #censored
-        detail['scanned_time'] = getCurrentTimestamp()
-        db_client[const_swipex.DB_COLLECTION_MOVIES].insert_one(detail)
+        db_client[constant.DB_COLLECTION_POST].insert_one(detail)
         # print('finish insert ====== ' + detail['code'])
-    else:
-        #existed in db, update original link data
-        record['original_links'] = detail['original_links']
-        record['video_len'] = detail['video_len']
-        record['scanned_time'] = getCurrentTimestamp()
-        #update empty play_links
-        if len(record['original_links']) > 0:
-            if record['play_links'] is None or record['play_links'] == '' or len(record['play_links']) == 0:
-                record['play_links'] = [encrypt_str(record['original_links'][0]['link'])]
-        db_client[const_swipex.DB_COLLECTION_MOVIES].update({'_id':record['_id']}, record)
-        # print('finish update ' + detail['code'])
     return
-#######################
-def getCurrentTimestamp():
-    return calendar.timegm(time.gmtime())
-#######################
-#encrypt string
-def encrypt_str(original_str):
-    lenx = len(original_str)
-    #cut x characters at the end
-    postfix_string = original_str[lenx - const_swipex.POST_ENCRYPT_LEN: lenx]
-    #revert x characters
-    revert_string = postfix_string[::-1]
-    #remove post fix string
-    cut_string = original_str[0: lenx - const_swipex.POST_ENCRYPT_LEN]
-    #append revert string to the end
-    return cut_string + revert_string
 #######################
 def parse_page():
     page = ''
@@ -153,33 +119,29 @@ def parse_page():
     tree = html.fromstring(page.content)
     rightbar = tree.xpath('//div[@id="rightbar"]')
     lis = rightbar[0].xpath('.//a')
-    print (len(lis))
+    # print (len(lis))
     #traverse each continent
     for country in lis:
-        print(country.attrib['href'])
+        # print(country.attrib['href'])
+        href = country.attrib['href']
+        if (href.find('.craigslist.org') > 0):
+            if (href.find('/about/sites') > 0):
+                parse_country_page(country.attrib['href'], country.text_content())
+            else:
+                parse_about_page(country.attrib['href'])
 
-#######################
-#update detail of each movies (current time - latest_scan_update_time > 14 days)
-def update_movies(db_client):
-    current_time = getCurrentTimestamp()
-    oldest_scan_time = current_time - 14*24*60*60   #14 days
-    # print(oldest_scan_time)
-    records = db_client[const_swipex.DB_COLLECTION_MOVIES].find({'source':'javbus',
-                                                                 '$or':[{'scanned_time':None}, {'scanned_time':{'$lt':oldest_scan_time}}]}).sort("created_time", -1).limit(30)
-    for saved_record in records:
-        #parse detail of title page
-        parse_detail_page('https://www.javbus.com/'+saved_record['code'], saved_record)
-        upsert_detail(db_client, saved_record)
-    return
 #######################
 start_time = getCurrentTimestamp()
 client = MongoClient('localhost:27017')
 db_client = client['craigslist_db']
 
-start_page_index = 1    #from 1
-end_page_index = 5
+# parse_page()
 
-parse_page()
+#test
+meta_detail = {}
+meta_detail['city'] = 'los angeles'
+meta_detail['country'] = 'americas'
+parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
 #
 end_time = getCurrentTimestamp()
 total_time = end_time - start_time
