@@ -9,3 +9,15 @@ Parse entire website to find out part time jobs
 7. save into db, flag as unread
 8. show into UI, shorted by created date
 
+Run Django:
+1. python manage.py runserver
+
+Post detail:
+- continent
+- country
+- city
+- title
+- post date
+- is_read
+- description
+- extra_data {}

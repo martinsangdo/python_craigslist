@@ -6,7 +6,7 @@ from lxml import html
 import requests
 import time
 from pymongo import MongoClient
-import const_swipex
+import constant
 import calendar
 import ssl
 import sys
@@ -139,9 +139,9 @@ def encrypt_str(original_str):
     #append revert string to the end
     return cut_string + revert_string
 #######################
-def parse_page(page_index):
+def parse_page():
     page = ''
-    page_url = 'https://www.javbus.com/page/'+str(page_index)
+    page_url = constant.MAIN_HOMEPAGE
     while page == '':
         try:
             page = requests.get(page_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -151,19 +151,12 @@ def parse_page(page_index):
             continue
     # print page.content
     tree = html.fromstring(page.content)
-    tags = tree.xpath('//a[@class="movie-box"]')
-    #traverve in revert order, latest movie should be on top
-    for tag in tags[::-1]:
-        # print tag.text_content()
-        detail = {}
-        detail['description'] = tag.xpath('./div/img')[0].attrib['title'].strip()
-        detail['thumbnail'] = tag.xpath('./div/img')[0].attrib['src'].strip()
-        detail['title'] = detail['code'] = tag.xpath('./div[@class="photo-info"]/span/date')[0].text_content().strip()
-        if detail['code'] is not '':
-            #parse detail of title page
-            parse_detail_page(tag.attrib['href'], detail)
-            # if detail['play_links'] is not '' and detail['play_links'] is not None and len(detail['play_links']) > 0:
-            upsert_detail(db_client, detail)
+    rightbar = tree.xpath('//div[@id="rightbar"]')
+    lis = rightbar[0].xpath('.//a')
+    print (len(lis))
+    #traverse each continent
+    for country in lis:
+        print(country.attrib['href'])
 
 #######################
 #update detail of each movies (current time - latest_scan_update_time > 14 days)
@@ -180,26 +173,13 @@ def update_movies(db_client):
     return
 #######################
 start_time = getCurrentTimestamp()
-# client = MongoClient('localhost:27017')
-client = MongoClient('mongodb+srv://swipexdev2:fiptncjVopaaqAtU@cluster0.fwovj.mongodb.net', ssl_cert_reqs=ssl.CERT_NONE)
-db_client = client['swipexdevdb']
+client = MongoClient('localhost:27017')
+db_client = client['craigslist_db']
 
 start_page_index = 1    #from 1
 end_page_index = 5
 
-if (len(sys.argv) > 1):	#having parameter
-    if sys.argv[1] == 'update':
-        #update movies with links
-        #python3 /home/ec2-user/python/swipex_python/parse_javbus_list.py update
-        update_movies(db_client)
-    else:   #scrape new movies
-        #python3 /home/ec2-user/python/swipex_python/parse_javbus_list.py scrape 21 40
-        if (len(sys.argv) > 3):
-            start_page_index = int(sys.argv[2])
-            end_page_index = int(sys.argv[3])
-        while start_page_index <= end_page_index:
-            parse_page(end_page_index)  #latest movies on top
-            end_page_index = end_page_index - 1
+parse_page()
 #
 end_time = getCurrentTimestamp()
 total_time = end_time - start_time
