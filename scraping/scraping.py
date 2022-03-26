@@ -8,8 +8,6 @@ import time
 from pymongo import MongoClient
 import constant
 import calendar
-import ssl
-import sys
 
 #######################
 def getCurrentTimestamp():
@@ -39,8 +37,8 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     extra_info = tree.xpath('//p[@class="attrgroup"]')
     detail['extra_info'] = html.tostring(extra_info[0])
     #
-    detail['country'] = meta_detail['country']
-    detail['city'] = meta_detail['city']
+    detail['country'] = meta_detail['country'].lower()
+    detail['city'] = tree.xpath('//meta[@name="geo.placename"]')[0].attrib['content'].lower()
     detail['catalog'] = meta_detail['catalog']
 #
     upsert_detail(db_client, detail)
@@ -92,6 +90,25 @@ def parse_city_page(db_client, meta_detail, city_page_url):
     parse_post_list_page(db_client, meta_detail, city_page_url.replace('craigslist.org/', 'craigslist.org') + web[0].attrib['href'])
     return
 #######################
+#parse city list page
+def parse_city_list_page(db_client, meta_detail, city_list_page_url):
+    page = ''
+    while page == '':
+        try:
+            page = requests.get(city_list_page_url, headers={'User-Agent': 'Mozilla/5.0'})
+            break
+        except:
+            time.sleep(5)
+            continue
+    # print page.content
+    tree = html.fromstring(page.content)
+    div = tree.xpath('//div[@class="colmask"]')
+    city_list = div[0].xpath('.//a')
+    for city in city_list:
+        parse_city_page(db_client, meta_detail, city.attrib['href'])
+
+    return
+#######################
 #upsert movie detail
 def upsert_detail(db_client, detail):
     # print(detail)
@@ -105,7 +122,7 @@ def upsert_detail(db_client, detail):
         # print('finish insert ====== ' + detail['code'])
     return
 #######################
-def parse_page():
+def parse_page(db_client):
     page = ''
     page_url = constant.MAIN_HOMEPAGE
     while page == '':
@@ -125,23 +142,26 @@ def parse_page():
         # print(country.attrib['href'])
         href = country.attrib['href']
         if (href.find('.craigslist.org') > 0):
+            meta_detail = {}
+            meta_detail['country'] = country.text_content()
             if (href.find('/about/sites') > 0):
-                parse_country_page(country.attrib['href'], country.text_content())
+                parse_city_list_page(db_client, meta_detail, country.attrib['href'])
             else:
-                parse_about_page(country.attrib['href'])
+                parse_city_page(db_client, meta_detail, country.attrib['href'])
 
 #######################
 start_time = getCurrentTimestamp()
 client = MongoClient('localhost:27017')
 db_client = client['craigslist_db']
 
-# parse_page()
+# parse_page(db_client)
 
 #test
 meta_detail = {}
-meta_detail['city'] = 'los angeles'
 meta_detail['country'] = 'americas'
-parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
+# parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
+parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#CA')
+
 #
 end_time = getCurrentTimestamp()
 total_time = end_time - start_time
