@@ -19,6 +19,7 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     timeout = 0
     while page == '':
         try:
+            print('begin scraping ' + detail_page_url)
             page = requests.get(detail_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -60,6 +61,7 @@ def parse_post_list_page(db_client, meta_detail, post_list_page_url):
     timeout = 0
     while page == '':
         try:
+            print('begin scraping ' + url)
             page = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -70,7 +72,7 @@ def parse_post_list_page(db_client, meta_detail, post_list_page_url):
         return
     # print page.content
     tree = html.fromstring(page.content)
-    print('completed parse post list: ' + url)
+    print('>>>>> completed parse post list: ' + url)
     list = tree.xpath('//ul[@id="search-results"]/li[@class="result-row"]')
     for item in list:
         detail = {}
@@ -87,13 +89,18 @@ def parse_city_page(db_client, meta_detail, city_page_url):
     if (city_page_url.find('https://') < 0 and city_page_url.find('http://') < 0):
         city_page_url = city_page_url.replace('//', 'https://')
     page = ''
+    timeout = 0
     while page == '':
         try:
-            page = requests.get(city_page_url, headers={'User-Agent': 'Mozilla/5.0'})
+            print('begin scraping ' + city_page_url)
+            page = requests.get(city_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
-            time.sleep(5)
-            continue
+            print('----- timeout ' + city_page_url)
+            timeout = 1
+            break
+    if (timeout > 0):
+        return
     # print page.content
     tree = html.fromstring(page.content)
     # print('completed parse city page ' + city_page_url)
@@ -108,13 +115,18 @@ def parse_city_page(db_client, meta_detail, city_page_url):
 #parse city list page
 def parse_city_list_page(db_client, meta_detail, city_list_page_url):
     page = ''
+    timeout = 0
     while page == '':
         try:
-            page = requests.get(city_list_page_url, headers={'User-Agent': 'Mozilla/5.0'})
+            print('begin scraping ' + city_list_page_url)
+            page = requests.get(city_list_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
-            time.sleep(5)
-            continue
+            print('----- timeout ' + city_list_page_url)
+            timeout = 1
+            break
+    if (timeout > 0):
+        return
     # print page.content
     tree = html.fromstring(page.content)
     div = tree.xpath('//div[@class="colmask"]')
