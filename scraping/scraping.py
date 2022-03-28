@@ -16,17 +16,20 @@ def getCurrentTimestamp():
 #parse detail page
 def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     page = ''
+    timeout = 0
     while page == '':
         try:
-            page = requests.get(detail_page_url, headers={'User-Agent': 'Mozilla/5.0'})
+            page = requests.get(detail_page_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
-            time.sleep(5)
-            continue
+            timeout = 1
+            break
+    if (timeout > 0):
+        return
     # print page.content
     tree = html.fromstring(page.content)
     detail['url'] =  detail_page_url
-    # print 'completed parse ' + detail_page_url
+    # print('completed parse detail page ' + detail_page_url)
     #get title
     title = tree.xpath('//span[@class="postingtitletext"]')
     detail['title'] = title[0].text_content().strip()
@@ -48,17 +51,22 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
 #######################
 #parse post list page
 def parse_post_list_page(db_client, meta_detail, post_list_page_url):
+    url = post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4'
+    # print('post list url ' + post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4')
     page = ''
+    timeout = 0
     while page == '':
         try:
-            page = requests.get(post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4', headers={'User-Agent': 'Mozilla/5.0'})
+            page = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
             time.sleep(5)
-            continue
+            timeout = 1
+    if (timeout > 0):
+        return
     # print page.content
     tree = html.fromstring(page.content)
-    print('completed parse ' + post_list_page_url)
+    print('completed parse post list: ' + url)
     list = tree.xpath('//ul[@id="search-results"]/li[@class="result-row"]')
     for item in list:
         detail = {}
@@ -84,7 +92,7 @@ def parse_city_page(db_client, meta_detail, city_page_url):
             continue
     # print page.content
     tree = html.fromstring(page.content)
-    print('completed parse ' + city_page_url)
+    # print('completed parse city page ' + city_page_url)
     software = tree.xpath('//a[@class="sof"][@data-cat="sof"]')
     meta_detail['catalog'] = 'software';
     parse_post_list_page(db_client, meta_detail, city_page_url.replace('craigslist.org/', 'craigslist.org') + software[0].attrib['href'])
@@ -166,11 +174,10 @@ parse_page(db_client)
 #test
 # meta_detail = {}
 # meta_detail['country'] = 'americas'
-# parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
+# parse_city_page(db_client, meta_detail, 'https://geo.craigslist.org/iso/ar')
 # parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#CA')
-# print(convert_2_timestamp("2022-03-25 22:40", '%Y-%m-%d %H:%S'))
 
 #
 end_time = getCurrentTimestamp()
 total_time = end_time - start_time
-# print('Total time: ' + str(total_time))
+print('Total time: ' + str(total_time))
