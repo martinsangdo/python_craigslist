@@ -38,7 +38,8 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     detail['extra_info'] = html.tostring(extra_info[0])
     #
     detail['country'] = meta_detail['country'].lower()
-    detail['city'] = tree.xpath('//meta[@name="geo.placename"]')[0].attrib['content'].lower()
+    if (len(tree.xpath('//meta[@name="geo.placename"]')) > 0):
+        detail['city'] = tree.xpath('//meta[@name="geo.placename"]')[0].attrib['content'].lower()
     detail['catalog'] = meta_detail['catalog']
 #
     upsert_detail(db_client, detail)
@@ -71,6 +72,8 @@ def parse_post_list_page(db_client, meta_detail, post_list_page_url):
 #######################
 #parse city page
 def parse_city_page(db_client, meta_detail, city_page_url):
+    if (city_page_url.find('https://') < 0):
+        city_page_url = city_page_url.replace('//', 'https://')
     page = ''
     while page == '':
         try:
@@ -81,7 +84,7 @@ def parse_city_page(db_client, meta_detail, city_page_url):
             continue
     # print page.content
     tree = html.fromstring(page.content)
-    # print 'completed parse ' + city_page_url
+    print('completed parse ' + city_page_url)
     software = tree.xpath('//a[@class="sof"][@data-cat="sof"]')
     meta_detail['catalog'] = 'software';
     parse_post_list_page(db_client, meta_detail, city_page_url.replace('craigslist.org/', 'craigslist.org') + software[0].attrib['href'])
@@ -158,12 +161,12 @@ start_time = getCurrentTimestamp()
 client = MongoClient('localhost:27017')
 db_client = client['craigslist_db']
 
-# parse_page(db_client)
+parse_page(db_client)
 
 #test
-meta_detail = {}
-meta_detail['country'] = 'americas'
-parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
+# meta_detail = {}
+# meta_detail['country'] = 'americas'
+# parse_city_page(db_client, meta_detail, 'https://losangeles.craigslist.org')
 # parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#CA')
 # print(convert_2_timestamp("2022-03-25 22:40", '%Y-%m-%d %H:%S'))
 

@@ -18,5 +18,5 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^admin/', admin.site.urls),
-    url('cr/', include('mycraigslist.urls'))
+    url('mycraigslist/', include('mycraigslist.urls'))
 ]
