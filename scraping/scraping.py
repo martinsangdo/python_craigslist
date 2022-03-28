@@ -9,6 +9,7 @@ import constant
 import calendar
 import datetime
 import time
+import os
 #######################
 def getCurrentTimestamp():
     return calendar.timegm(time.gmtime())
@@ -19,7 +20,7 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     timeout = 0
     while page == '':
         try:
-            print('begin scraping ' + detail_page_url)
+            # print('begin scraping detail ' + detail_page_url)
             page = requests.get(detail_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -61,7 +62,7 @@ def parse_post_list_page(db_client, meta_detail, post_list_page_url):
     timeout = 0
     while page == '':
         try:
-            print('begin scraping ' + url)
+            print('begin scraping post list ' + url)
             page = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -92,7 +93,7 @@ def parse_city_page(db_client, meta_detail, city_page_url):
     timeout = 0
     while page == '':
         try:
-            print('begin scraping ' + city_page_url)
+            print('begin scraping city ' + city_page_url)
             page = requests.get(city_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -118,7 +119,7 @@ def parse_city_list_page(db_client, meta_detail, city_list_page_url):
     timeout = 0
     while page == '':
         try:
-            print('begin scraping ' + city_list_page_url)
+            print('begin scraping city list ' + city_list_page_url)
             page = requests.get(city_list_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
@@ -185,13 +186,27 @@ start_time = getCurrentTimestamp()
 client = MongoClient('localhost:27017')
 db_client = client['craigslist_db']
 
-parse_page(db_client)
+os.environ['no_proxy'] = '*'
+session = requests.Session()
+session.trust_env = False
+proxies = {
+    "http": None,
+    "https": None,
+}
+
+# parse_page(db_client)
 
 #test
-# meta_detail = {}
-# meta_detail['country'] = 'americas'
+meta_detail = {}
+meta_detail['country'] = 'americas'
 # parse_city_page(db_client, meta_detail, 'https://geo.craigslist.org/iso/ar')
+# parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#US')
 # parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#CA')
+# parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#EU')
+# parse_city_list_page(db_client, meta_detail, 'https://www.craigslist.org/about/sites#OCEANIA')
+# parse_city_page(db_client, meta_detail, 'https://singapore.craigslist.org')
+parse_city_page(db_client, meta_detail, 'https://seoul.craigslist.org')
+parse_city_page(db_client, meta_detail, 'https://tokyo.craigslist.org')
 
 #
 end_time = getCurrentTimestamp()
