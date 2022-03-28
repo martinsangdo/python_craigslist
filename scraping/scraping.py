@@ -19,9 +19,10 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
     timeout = 0
     while page == '':
         try:
-            page = requests.get(detail_page_url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            page = requests.get(detail_page_url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
+            print('----- timeout ' + detail_page_url)
             timeout = 1
             break
     if (timeout > 0):
@@ -53,15 +54,18 @@ def parse_detail_page(db_client, meta_detail, detail, detail_page_url):
 def parse_post_list_page(db_client, meta_detail, post_list_page_url):
     url = post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4'
     # print('post list url ' + post_list_page_url+'?employment_type=2&employment_type=3&employment_type=4')
+    if (url.find('craigslist.org/') < 0):
+        return
     page = ''
     timeout = 0
     while page == '':
         try:
-            page = requests.get(url, timeout=10, headers={'User-Agent': 'Mozilla/5.0'})
+            page = requests.get(url, timeout=20, headers={'User-Agent': 'Mozilla/5.0'})
             break
         except:
-            time.sleep(5)
+            print('----- timeout ' + url)
             timeout = 1
+            break
     if (timeout > 0):
         return
     # print page.content
@@ -80,7 +84,7 @@ def parse_post_list_page(db_client, meta_detail, post_list_page_url):
 #######################
 #parse city page
 def parse_city_page(db_client, meta_detail, city_page_url):
-    if (city_page_url.find('https://') < 0):
+    if (city_page_url.find('https://') < 0 and city_page_url.find('http://') < 0):
         city_page_url = city_page_url.replace('//', 'https://')
     page = ''
     while page == '':
